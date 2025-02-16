@@ -4,10 +4,15 @@
  */
 package fr.tlegrand.router;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.math.BigInteger;
 import java.net.Socket;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
-import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+import java.util.concurrent.Callable;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -15,31 +20,77 @@ import lombok.Setter;
  *
  * @author reina
  */
-@Getter @Setter public class Client {
+@Getter
+@Setter
+public class Client implements Callable<Void> {
+
+    static private final int DEFAULT_BUFFER_SIZE = 1024;
+
     static public int idCount;
+    private final Router router;
     private int id;
+    private final Socket socket;
+    private final InputStreamReader reader;
+    private final OutputStreamWriter writer;
 
-    public List<String> waitingMessage;
+    public Client(Socket socket, Router router) throws IOException {
+        this.socket = socket;
+        this.router = router;
+        reader = new InputStreamReader(socket.getInputStream(), Router.CHARSET);
+        writer = new OutputStreamWriter(socket.getOutputStream(), Router.CHARSET);
+    }
 
-    public Client() {
-        this.id = idCount++;
+//String.format("%06d", number);
+// block until read
+// parse n valid
+//    find target
+// submit write
+    @Override
+    public Void call() throws Exception {
+        router.submit(() -> this.send("your id: " + this.id));
+        while (true) {
+            try {
+                //   read message
+                String message = read();
+                if (message == null) {
+                    System.out.println("client disconnected");
+                    return null;
+                } else {
+                    System.out.println("client talking");
+                }
+                //  find dest
+                int targetId = Integer.parseUnsignedInt(message.subSequence(0, 6), 0, 6, 10);
+                Client target = Index.getInstance().find(targetId);
+                //  forward message
+                if (target != null) {
+                    router.submit(() -> target.send(message));
+                } else {
+                    System.out.println("target not found");
+                }
+                throw new NumberFormatException();
+            } catch (IOException e) {
+                System.err.println("IO error -> close client : " + e);
+            } 
+            System.out.println("ned whille");
+        }
+    }
+
+    public Void send(String message) throws IOException {
+        this.writer.write(message);
+        writer.flush();
+        return null;
+    }
+
+//        thorw -> close client
+    private String read() throws IOException {
+        char[] buffer = new char[DEFAULT_BUFFER_SIZE];
+        InputStream in = socket.getInputStream();
+        InputStreamReader reader = new InputStreamReader(in, StandardCharsets.ISO_8859_1);
+        System.out.println("waiting on read...");
+        int n = reader.read(buffer);
+        if (n < 0) {
+            return null;
+        }
+        return new String(buffer);
     }
 }
-
-/*
-
-map id -> client ()
-
-keys -> channels 
-    -> attachement -> id + readBuffer + waiting message  == client
-                 
-read -> disconnect
-     -> read -> store in buffer
-     -> if read end -> check msg and forward (buffer)
-            THR ==> validate checksum 
-                            -> look target (use map) (from id to client(or chanatcj)
-                                -> add a waiting message 
-                                // add waiting message error to client
-     -> if write -> if message waiting -> write
-
-*/

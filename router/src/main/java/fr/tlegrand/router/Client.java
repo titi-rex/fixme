@@ -27,13 +27,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.math.BigInteger;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import lombok.Getter;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -47,6 +47,7 @@ public class Client implements Callable<Void> {
 
     static public int idCount;
     private final Router router;
+    private final Logger log;
     private int id;
     private final Socket socket;
     private final InputStreamReader reader;
@@ -57,6 +58,7 @@ public class Client implements Callable<Void> {
         this.router = router;
         reader = new InputStreamReader(socket.getInputStream(), Router.CHARSET);
         writer = new OutputStreamWriter(socket.getOutputStream(), Router.CHARSET);
+        log = LoggerFactory.getLogger(this.getClass());
     }
 
 //String.format("%06d", number);
@@ -72,10 +74,10 @@ public class Client implements Callable<Void> {
                 //   read message
                 String message = read();
                 if (message == null) {
-                    System.out.println("client disconnected");
+                    log.debug("client disconnected");
                     return null;
                 } else {
-                    System.out.println("client talking");
+                    log.debug("client talking");
                 }
                 //  find dest
                 int targetId = Integer.parseUnsignedInt(message.subSequence(0, 6), 0, 6, 10);
@@ -84,13 +86,12 @@ public class Client implements Callable<Void> {
                 if (target != null) {
                     router.submit(() -> target.send(message));
                 } else {
-                    System.out.println("target not found");
+                    log.debug("target not found");
                 }
-                throw new NumberFormatException();
             } catch (IOException e) {
                 System.err.println("IO error -> close client : " + e);
-            } 
-            System.out.println("ned whille");
+            }
+            log.debug("ned whille");
         }
     }
 
@@ -105,7 +106,7 @@ public class Client implements Callable<Void> {
         char[] buffer = new char[DEFAULT_BUFFER_SIZE];
         InputStream in = socket.getInputStream();
         InputStreamReader reader = new InputStreamReader(in, StandardCharsets.ISO_8859_1);
-        System.out.println("waiting on read...");
+        log.debug(this.id + "waiting on read...");
         int n = reader.read(buffer);
         if (n < 0) {
             return null;

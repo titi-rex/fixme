@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +45,7 @@ import org.slf4j.LoggerFactory;
 public class Router {
 
     static public final Charset CHARSET = StandardCharsets.ISO_8859_1;
-    private Logger log;
+    private final Logger log;
 
     private final Index index;
     private final ExecutorService executor;
@@ -54,7 +55,7 @@ public class Router {
         index = Index.getInstance();
         executor = Executors.newVirtualThreadPerTaskExecutor();
         completionService = new ExecutorCompletionService<>(executor);
-        log = LoggerFactory.getLogger("router");
+        log = LoggerFactory.getLogger(this.getClass());
     }
 
     public static void main(String[] args) {
@@ -63,27 +64,54 @@ public class Router {
     }
 
     public void launch() {
-        this.start();
-        this.loop();
+        try {
+            this.start();
+            this.loop();
+        } catch (FatalException e) {
+            log.error("fatal: " + e);
+            this.close();
+        } finally {
+            log.info("router closed");
+        }
     }
 
     public void submit(Callable task) {
         completionService.submit(task);
     }
 
-    private void start() {
+    public void close() {
+        log.info("shutdown");
+        executor.shutdown();
+        try {
+            if (executor.awaitTermination(10, TimeUnit.SECONDS) == false) {
+                executor.shutdownNow();
+                if (executor.awaitTermination(10, TimeUnit.SECONDS) == false) {
+                    log.error("can't terminate task");
+                }
+            }
+            log.debug("shutdown completed");
+        } catch (InterruptedException e) {
+            log.debug("interrupted while waiting for shutdown");
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void start() throws FatalException {
         try {
             log.info("start router");
             this.submit(() -> listen(5000, executor));
             this.submit(() -> listen(5001, executor));
+            throw new RejectedExecutionException("test");
         } catch (RejectedExecutionException e) {
-            e.printStackTrace();
+            log.error(e.toString());
+            throw new FatalException("fatal");
         }
     }
 
     private Void listen(int port, ExecutorService exe) {
         try (ServerSocket socket = new ServerSocket(port)) {
-            log.info("launch TL on port: " + port);
+            log.info("listening on port: " + port);
             while (true) {
                 Socket clientSocket = socket.accept();
                 Client newClient = new Client(clientSocket, this);
@@ -98,9 +126,10 @@ public class Router {
     }
 
     private void loop() {
+        log.debug("loop");
         while (true) {
             try {
-                //            wake up when task client finish and remove client
+                // wake up when task client finish and remove client
                 Future future = completionService.take();
                 future.get();
 

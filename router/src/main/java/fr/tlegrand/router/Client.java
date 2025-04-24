@@ -46,18 +46,18 @@ public class Client implements Callable<Void> {
     static private final int DEFAULT_BUFFER_SIZE = 1024;
 
     static public int idCount;
-    private final Router router;
+    private final FXRouter router;
     private final Logger log;
     private int id;
     private final Socket socket;
     private final InputStreamReader reader;
     private final OutputStreamWriter writer;
 
-    public Client(Socket socket, Router router) throws IOException {
+    public Client(Socket socket, FXRouter router) throws IOException {
         this.socket = socket;
         this.router = router;
-        reader = new InputStreamReader(socket.getInputStream(), Router.CHARSET);
-        writer = new OutputStreamWriter(socket.getOutputStream(), Router.CHARSET);
+        reader = new InputStreamReader(socket.getInputStream(), FXRouter.CHARSET);
+        writer = new OutputStreamWriter(socket.getOutputStream(), FXRouter.CHARSET);
         log = LoggerFactory.getLogger(this.getClass());
     }
 

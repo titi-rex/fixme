@@ -11,6 +11,6 @@
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
-        <exec.mainClass>fr.tlegrand.router.Router</exec.mainClass>
+        <exec.mainClass>fr.tlegrand.router.FXRouter</exec.mainClass>
     </properties>
 </project>
